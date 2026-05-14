@@ -14,6 +14,8 @@ const buttonVariants = cva(
           "bg-transparent text-slate-400 hover:bg-white/[0.04] hover:text-slate-200",
         outline:
           "border border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]",
+        emeraldOutline:
+          "border border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-300 hover:border-emerald-400/50 hover:bg-emerald-500/[0.1] hover:text-emerald-200",
       },
       size: {
         default: "h-10 px-4 py-2",

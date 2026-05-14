@@ -31,29 +31,15 @@ export function Nav() {
           <a href="#report" className="hover:text-white transition-colors">
             Example report
           </a>
-          <a href="#" className="hover:text-white transition-colors">
-            Pricing
-          </a>
-          <a href="#" className="hover:text-white transition-colors">
-            Docs
-          </a>
         </nav>
 
-        <div className="flex items-center gap-3">
-          <a
-            href="https://github.com/y-emam/repocheck"
-            className="hidden sm:inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
-          >
-            <Github size={16} strokeWidth={1.75} />
-            <span className="hidden lg:inline">Star on GitHub</span>
-          </a>
-          <a
-            href="#hero-input"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-white/[0.04] border border-white/10 px-3.5 py-1.5 text-sm text-white hover:bg-white/[0.08] transition-colors"
-          >
-            Sign in
-          </a>
-        </div>
+        <a
+          href="https://github.com/y-emam/repocheck"
+          className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
+        >
+          <Github size={16} strokeWidth={1.75} />
+          <span className="hidden sm:inline">Star on GitHub</span>
+        </a>
       </div>
     </motion.header>
   );

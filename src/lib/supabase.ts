@@ -44,24 +44,7 @@ export interface ReportInsert {
   ai_summary: string | null;
 }
 
-export interface Database {
-  public: {
-    Tables: {
-      repos: {
-        Row: RepoRow;
-        Insert: RepoInsert;
-        Update: Partial<RepoInsert>;
-      };
-      reports: {
-        Row: ReportRow;
-        Insert: ReportInsert;
-        Update: Partial<ReportInsert>;
-      };
-    };
-  };
-}
-
-export type ServerSupabaseClient = SupabaseClient<Database>;
+export type ServerSupabaseClient = SupabaseClient;
 
 export function createServerClient(): ServerSupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -72,7 +55,7 @@ export function createServerClient(): ServerSupabaseClient {
   if (!serviceKey) {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set");
   }
-  return createClient<Database>(url, serviceKey, {
+  return createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

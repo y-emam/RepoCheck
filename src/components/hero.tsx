@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Check,
@@ -8,6 +9,7 @@ import {
   ClipboardPaste,
   Github,
   Link as LinkIcon,
+  Loader2,
   Sparkles,
 } from "lucide-react";
 
@@ -28,14 +30,58 @@ const fadeUp = (delay = 0) => ({
 });
 
 export function Hero() {
+  const router = useRouter();
   const [url, setUrl] = useState("");
   const [focused, setFocused] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handlePaste = () => {
     navigator.clipboard
       ?.readText()
       .then((t) => t && setUrl(t))
       .catch(() => {});
+  };
+
+  const submitUrl = async (target: string) => {
+    const value = target.trim();
+    if (!value || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: value }),
+      });
+      const payload = (await res.json().catch(() => null)) as
+        | { owner?: string; repo?: string; error?: string }
+        | null;
+      if (!res.ok) {
+        setError(payload?.error ?? "Something went wrong analyzing that repo");
+        return;
+      }
+      if (!payload?.owner || !payload?.repo) {
+        setError("Server returned an unexpected response");
+        return;
+      }
+      router.push(`/report/${payload.owner}/${payload.repo}`);
+    } catch (err) {
+      console.error("Analyze request failed", err);
+      setError("Network error — please try again");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    void submitUrl(url);
+  };
+
+  const handleChipClick = (chipUrl: string) => {
+    setUrl(chipUrl);
+    void submitUrl(chipUrl);
   };
 
   return (
@@ -94,7 +140,7 @@ export function Hero() {
         <motion.form
           {...fadeUp(0.24)}
           id="hero-input"
-          onSubmit={(e) => e.preventDefault()}
+          onSubmit={handleSubmit}
           className="mx-auto mt-10 max-w-2xl"
         >
           <div
@@ -121,7 +167,8 @@ export function Hero() {
             <button
               type="button"
               onClick={handlePaste}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs text-slate-400 hover:bg-white/[0.04] hover:text-slate-200 transition-colors"
+              disabled={submitting}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs text-slate-400 hover:bg-white/[0.04] hover:text-slate-200 transition-colors disabled:opacity-50"
               title="Paste from clipboard"
             >
               <ClipboardPaste size={14} strokeWidth={1.75} />
@@ -129,12 +176,26 @@ export function Hero() {
             </button>
             <Button
               type="submit"
+              disabled={submitting || url.trim().length === 0}
               className="shrink-0 rounded-xl px-4 sm:px-5 py-2.5 text-sm font-semibold"
             >
-              <Sparkles size={15} strokeWidth={2.2} />
-              Analyze
+              {submitting ? (
+                <Loader2 size={15} strokeWidth={2.2} className="animate-spin" />
+              ) : (
+                <Sparkles size={15} strokeWidth={2.2} />
+              )}
+              {submitting ? "Analyzing…" : "Analyze"}
             </Button>
           </div>
+
+          {error && (
+            <div
+              role="alert"
+              className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/[0.06] px-3 py-2 text-xs text-rose-200"
+            >
+              {error}
+            </div>
+          )}
 
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs">
             <span className="text-slate-500">Try:</span>
@@ -142,8 +203,9 @@ export function Hero() {
               <button
                 key={ex.label}
                 type="button"
-                onClick={() => setUrl(ex.url)}
-                className="group inline-flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900/50 px-3 py-1 font-mono text-slate-300 hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-200 transition-all"
+                onClick={() => handleChipClick(ex.url)}
+                disabled={submitting}
+                className="group inline-flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900/50 px-3 py-1 font-mono text-slate-300 hover:border-emerald-500/40 hover:bg-emerald-500/[0.06] hover:text-emerald-200 transition-all disabled:opacity-50"
               >
                 <LinkIcon
                   size={11}

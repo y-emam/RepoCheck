@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import {
   Activity,
@@ -16,6 +18,7 @@ import {
   GitFork,
   GitPullRequest,
   Github,
+  Loader2,
   RefreshCw,
   Sparkles,
   Star,
@@ -24,10 +27,17 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import type { RepoSnapshot } from "@/lib/github";
 import { sampleReport } from "@/lib/sample-report";
+
+interface ReportPageProps {
+  owner: string;
+  repo: string;
+  snapshot: RepoSnapshot | null;
+  generatedAt: string | null;
+}
 
 const sourceIcon: Record<string, ReactNode> = {
   commit: <GitCommitHorizontal size={11} strokeWidth={1.75} />,
@@ -44,10 +54,55 @@ const metaIcon: Record<string, ReactNode> = {
   eye: <Eye size={12} strokeWidth={1.75} />,
 };
 
-export function ReportPage({ owner, repo }: { owner: string; repo: string }) {
-  const r = sampleReport;
+function formatCompact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`;
+  return n.toLocaleString("en-US");
+}
+
+function formatNumber(n: number): string {
+  return n.toLocaleString("en-US");
+}
+
+function formatRelative(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(diffMs) || diffMs < 0) return "just now";
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+export function ReportPage({ owner, repo, snapshot, generatedAt }: ReportPageProps) {
+  if (!snapshot || !generatedAt) {
+    return <NotAnalyzedState owner={owner} repo={repo} />;
+  }
+
   const githubUrl = `https://github.com/${owner}/${repo}`;
-  const analyzedLabel = "Last analyzed: 2 minutes ago";
+  const placeholder = sampleReport;
+
+  const meta: { kind: string; value: string; label: string }[] = [
+    { kind: "star", value: formatCompact(snapshot.metadata.stars), label: "stars" },
+    { kind: "fork", value: formatCompact(snapshot.metadata.forks), label: "forks" },
+    { kind: "eye", value: formatCompact(snapshot.metadata.watchers), label: "watchers" },
+  ];
+
+  const sources: { kind: string; label: string }[] = [
+    { kind: "commit", label: `${formatNumber(snapshot.commits.totalLast90)} commits / 90d` },
+    { kind: "issue", label: `${formatNumber(snapshot.issues.totalOpen)} open issues` },
+    { kind: "pr", label: `${formatNumber(snapshot.pullRequests.totalOpen)} open PRs` },
+    {
+      kind: "users",
+      label: `${formatNumber(snapshot.topContributors.length)} top contributors`,
+    },
+    { kind: "trend", label: `${formatNumber(snapshot.releaseCount90d)} releases / 90d` },
+  ];
+  if (snapshot.readme) {
+    sources.splice(4, 0, { kind: "file", label: "README" });
+  }
 
   return (
     <div className="relative min-h-screen bg-slate-950 text-slate-200 selection:bg-emerald-500/30">
@@ -91,14 +146,7 @@ export function ReportPage({ owner, repo }: { owner: string; repo: string }) {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="emeraldOutline"
-                size="sm"
-                className="h-8 rounded-lg px-3 text-xs"
-              >
-                <RefreshCw size={12} strokeWidth={2} />
-                Regenerate report
-              </Button>
+              <RegenerateButton owner={owner} repo={repo} />
               <a
                 href={githubUrl}
                 target="_blank"
@@ -121,21 +169,21 @@ export function ReportPage({ owner, repo }: { owner: string; repo: string }) {
                 <div className="relative">
                   <div className="absolute inset-0 -m-6 rounded-full bg-emerald-500/20 blur-3xl" />
                   <div className="relative font-bold leading-none tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-emerald-200 via-emerald-300 to-emerald-500 text-[140px] sm:text-[170px]">
-                    {r.grade}
+                    {placeholder.grade}
                   </div>
                 </div>
                 <div className="pb-4">
                   <div className="font-mono text-xs text-emerald-300">
-                    {r.score} / 100
+                    {placeholder.score} / 100
                   </div>
                   <div className="mt-1 text-xs text-slate-500">
-                    {r.scoreNote}
+                    {placeholder.scoreNote}
                   </div>
                 </div>
               </div>
 
               <div className="mt-6 space-y-3.5">
-                {r.subscores.map((s) => (
+                {placeholder.subscores.map((s) => (
                   <div key={s.label}>
                     <div className="flex items-center justify-between text-[12.5px]">
                       <span className="text-slate-300">{s.label}</span>
@@ -152,7 +200,7 @@ export function ReportPage({ owner, repo }: { owner: string; repo: string }) {
               </div>
 
               <div className="mt-7 grid grid-cols-3 gap-3 border-t border-slate-800/80 pt-6">
-                {r.meta.map((m) => (
+                {meta.map((m) => (
                   <div key={m.label}>
                     <div className="flex items-center gap-1 text-slate-500">
                       {metaIcon[m.kind]}
@@ -199,11 +247,11 @@ export function ReportPage({ owner, repo }: { owner: string; repo: string }) {
                       </linearGradient>
                     </defs>
                     <path
-                      d={`${r.sparkPath} L152,32 L0,32 Z`}
+                      d={`${placeholder.sparkPath} L152,32 L0,32 Z`}
                       fill="url(#sparkFill2)"
                     />
                     <path
-                      d={r.sparkPath}
+                      d={placeholder.sparkPath}
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="1.5"
@@ -226,18 +274,7 @@ export function ReportPage({ owner, repo }: { owner: string; repo: string }) {
                   dense and substantive — a signal of a healthy contributor
                   culture rather than churn.
                 </p>
-                <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono text-slate-500">
-                  <span>{analyzedLabel}</span>
-                  <span className="text-slate-700">·</span>
-                  <span className="inline-flex items-center gap-1">
-                    <Sparkles
-                      size={11}
-                      strokeWidth={1.75}
-                      className="text-emerald-400/80"
-                    />
-                    Powered by Gemini 2.0 Flash
-                  </span>
-                </div>
+                <AnalyzedAt generatedAt={generatedAt} />
               </div>
 
               <div className="mt-8 grid gap-6 md:grid-cols-2">
@@ -251,7 +288,7 @@ export function ReportPage({ owner, repo }: { owner: string; repo: string }) {
                     </h3>
                   </div>
                   <ul className="mt-4 space-y-4">
-                    {r.concerns.map((c, i) => (
+                    {placeholder.concerns.map((c, i) => (
                       <li key={c.title} className="relative pl-6">
                         <span className="absolute left-0 top-1.5 font-mono text-[11px] text-amber-300/80">
                           {String(i + 1).padStart(2, "0")}
@@ -277,7 +314,7 @@ export function ReportPage({ owner, repo }: { owner: string; repo: string }) {
                     </h3>
                   </div>
                   <ul className="mt-4 space-y-4">
-                    {r.priorities.map((p) => (
+                    {placeholder.priorities.map((p) => (
                       <li key={p.title} className="relative pl-6">
                         <Check
                           size={12}
@@ -301,7 +338,7 @@ export function ReportPage({ owner, repo }: { owner: string; repo: string }) {
                   Source data
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {r.sources.map((s) => (
+                  {sources.map((s) => (
                     <span
                       key={s.label}
                       className="inline-flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900/60 px-2.5 py-1 text-[11.5px] font-mono text-slate-300"
@@ -336,6 +373,180 @@ export function ReportPage({ owner, repo }: { owner: string; repo: string }) {
             <ArrowRight size={15} strokeWidth={2.2} />
           </Link>
         </motion.div>
+      </div>
+    </div>
+  );
+}
+
+function AnalyzedAt({ generatedAt }: { generatedAt: string }) {
+  const [label, setLabel] = useState<string>(() => formatRelative(generatedAt));
+  useEffect(() => {
+    setLabel(formatRelative(generatedAt));
+    const id = setInterval(() => setLabel(formatRelative(generatedAt)), 30_000);
+    return () => clearInterval(id);
+  }, [generatedAt]);
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono text-slate-500">
+      <span>Last analyzed: {label}</span>
+      <span className="text-slate-700">·</span>
+      <span className="inline-flex items-center gap-1">
+        <Sparkles size={11} strokeWidth={1.75} className="text-emerald-400/80" />
+        Powered by Gemini 2.0 Flash
+      </span>
+    </div>
+  );
+}
+
+function RegenerateButton({ owner, repo }: { owner: string; repo: string }) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleClick = async () => {
+    if (loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: `https://github.com/${owner}/${repo}` }),
+      });
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        setError(payload?.error ?? "Failed to regenerate");
+        return;
+      }
+      router.refresh();
+    } catch (err) {
+      console.error("Regenerate failed", err);
+      setError("Network error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      {error && <span className="text-[11px] text-rose-300">{error}</span>}
+      <Button
+        type="button"
+        variant="emeraldOutline"
+        size="sm"
+        disabled={loading}
+        onClick={handleClick}
+        className="h-8 rounded-lg px-3 text-xs"
+      >
+        {loading ? (
+          <Loader2 size={12} strokeWidth={2} className="animate-spin" />
+        ) : (
+          <RefreshCw size={12} strokeWidth={2} />
+        )}
+        {loading ? "Regenerating…" : "Regenerate report"}
+      </Button>
+    </div>
+  );
+}
+
+function NotAnalyzedState({ owner, repo }: { owner: string; repo: string }) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleAnalyze = async () => {
+    if (loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: `https://github.com/${owner}/${repo}` }),
+      });
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        setError(payload?.error ?? "Failed to analyze");
+        return;
+      }
+      router.refresh();
+    } catch (err) {
+      console.error("Analyze failed", err);
+      setError("Network error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="relative min-h-screen bg-slate-950 text-slate-200 selection:bg-emerald-500/30">
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.12),transparent_55%)]" />
+      <div className="relative mx-auto max-w-3xl px-6 lg:px-10 pt-10 pb-24">
+        <Link
+          href="/"
+          className="group inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-emerald-300 transition-colors"
+        >
+          <ArrowLeft
+            size={14}
+            strokeWidth={1.75}
+            className="transition-transform group-hover:-translate-x-0.5"
+          />
+          back to repocheck
+        </Link>
+
+        <div className="mt-16 rounded-3xl border border-slate-800 bg-slate-900/40 p-10 text-center backdrop-blur-xl shadow-[0_40px_120px_-30px_rgba(0,0,0,0.8)]">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-300">
+            <Github size={20} strokeWidth={1.75} />
+          </div>
+          <h1 className="mt-6 text-2xl font-semibold text-white">
+            Repository not yet analyzed
+          </h1>
+          <p className="mt-2 font-mono text-sm text-slate-400">
+            {owner}/{repo}
+          </p>
+          <p className="mx-auto mt-4 max-w-md text-[14.5px] leading-relaxed text-slate-400">
+            We don&apos;t have a report for this repository yet. Run an analysis
+            to fetch its commits, issues, PRs, and README.
+          </p>
+
+          {error && (
+            <div
+              role="alert"
+              className="mx-auto mt-5 max-w-md rounded-lg border border-rose-500/30 bg-rose-500/[0.06] px-3 py-2 text-xs text-rose-200"
+            >
+              {error}
+            </div>
+          )}
+
+          <div className="mt-7 flex items-center justify-center gap-3">
+            <Button
+              type="button"
+              onClick={handleAnalyze}
+              disabled={loading}
+              className="rounded-xl px-5 py-2.5 text-sm font-semibold"
+            >
+              {loading ? (
+                <Loader2 size={15} strokeWidth={2.2} className="animate-spin" />
+              ) : (
+                <Sparkles size={15} strokeWidth={2.2} />
+              )}
+              {loading ? "Analyzing…" : "Analyze this repo"}
+            </Button>
+            <a
+              href={`https://github.com/${owner}/${repo}`}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm text-slate-300 hover:bg-white/[0.08] hover:text-white transition-colors"
+            >
+              View on GitHub
+              <ExternalLink size={13} strokeWidth={1.75} />
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   );

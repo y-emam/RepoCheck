@@ -29,15 +29,20 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import type { AiReport } from "@/lib/ai";
 import type { RepoSnapshot } from "@/lib/github";
-import { sampleReport } from "@/lib/sample-report";
 
 interface ReportPageProps {
   owner: string;
   repo: string;
   snapshot: RepoSnapshot | null;
   generatedAt: string | null;
+  ai: AiReport | null;
 }
+
+// Decorative sparkline for the activity panel header.
+const SPARK_PATH =
+  "M0,28 L8,26 L16,22 L24,24 L32,20 L40,17 L48,18 L56,14 L64,16 L72,12 L80,13 L88,9 L96,11 L104,7 L112,9 L120,5 L128,7 L136,4 L144,6 L152,3";
 
 const sourceIcon: Record<string, ReactNode> = {
   commit: <GitCommitHorizontal size={11} strokeWidth={1.75} />,
@@ -76,13 +81,12 @@ function formatRelative(iso: string): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-export function ReportPage({ owner, repo, snapshot, generatedAt }: ReportPageProps) {
+export function ReportPage({ owner, repo, snapshot, generatedAt, ai }: ReportPageProps) {
   if (!snapshot || !generatedAt) {
     return <NotAnalyzedState owner={owner} repo={repo} />;
   }
 
   const githubUrl = `https://github.com/${owner}/${repo}`;
-  const placeholder = sampleReport;
 
   const meta: { kind: string; value: string; label: string }[] = [
     { kind: "star", value: formatCompact(snapshot.metadata.stars), label: "stars" },
@@ -165,39 +169,54 @@ export function ReportPage({ owner, repo, snapshot, generatedAt }: ReportPagePro
                 Overall health
               </div>
 
-              <div className="mt-3 flex items-end gap-4">
-                <div className="relative">
-                  <div className="absolute inset-0 -m-6 rounded-full bg-emerald-500/20 blur-3xl" />
-                  <div className="relative font-bold leading-none tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-emerald-200 via-emerald-300 to-emerald-500 text-[140px] sm:text-[170px]">
-                    {placeholder.grade}
+              {ai ? (
+                <>
+                  <div className="mt-3 flex items-end gap-4">
+                    <div className="relative">
+                      <div className="absolute inset-0 -m-6 rounded-full bg-emerald-500/20 blur-3xl" />
+                      <div className="relative font-bold leading-none tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-emerald-200 via-emerald-300 to-emerald-500 text-[140px] sm:text-[170px]">
+                        {ai.healthGrade}
+                      </div>
+                    </div>
+                    <div className="pb-4">
+                      <div className="font-mono text-xs text-emerald-300">
+                        {ai.healthScore} / 100
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {ai.scoreNote}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="pb-4">
-                  <div className="font-mono text-xs text-emerald-300">
-                    {placeholder.score} / 100
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {placeholder.scoreNote}
-                  </div>
-                </div>
-              </div>
 
-              <div className="mt-6 space-y-3.5">
-                {placeholder.subscores.map((s) => (
-                  <div key={s.label}>
-                    <div className="flex items-center justify-between text-[12.5px]">
-                      <span className="text-slate-300">{s.label}</span>
-                      <span className="font-mono text-emerald-300">{s.grade}</span>
-                    </div>
-                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-800">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400"
-                        style={{ width: `${s.value}%` }}
-                      />
-                    </div>
+                  <div className="mt-6 space-y-3.5">
+                    {ai.subscores.map((s) => (
+                      <div key={s.label}>
+                        <div className="flex items-center justify-between text-[12.5px]">
+                          <span className="text-slate-300">{s.label}</span>
+                          <span className="font-mono text-emerald-300">{s.grade}</span>
+                        </div>
+                        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400"
+                            style={{ width: `${Math.max(0, Math.min(100, s.value))}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              ) : (
+                <div className="mt-3 flex items-end gap-4">
+                  <div className="relative font-bold leading-none tracking-tight text-slate-700 text-[140px] sm:text-[170px]">
+                    —
+                  </div>
+                  <div className="pb-4 text-xs text-slate-500">
+                    AI analysis didn&apos;t complete. Use{" "}
+                    <span className="text-slate-300">Regenerate report</span> to
+                    try again.
+                  </div>
+                </div>
+              )}
 
               <div className="mt-7 grid grid-cols-3 gap-3 border-t border-slate-800/80 pt-6">
                 {meta.map((m) => (
@@ -247,11 +266,11 @@ export function ReportPage({ owner, repo, snapshot, generatedAt }: ReportPagePro
                       </linearGradient>
                     </defs>
                     <path
-                      d={`${placeholder.sparkPath} L152,32 L0,32 Z`}
+                      d={`${SPARK_PATH} L152,32 L0,32 Z`}
                       fill="url(#sparkFill2)"
                     />
                     <path
-                      d={placeholder.sparkPath}
+                      d={SPARK_PATH}
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="1.5"
@@ -261,18 +280,9 @@ export function ReportPage({ owner, repo, snapshot, generatedAt }: ReportPagePro
                   </svg>
                 </div>
                 <p className="mt-3 text-[14.5px] leading-relaxed text-slate-300">
-                  Sustained, high-cadence engineering. The project shipped{" "}
-                  <span className="text-white">
-                    12 releases in the last 90 days
-                  </span>
-                  , with commit volume up{" "}
-                  <span className="text-emerald-300">
-                    14% quarter-over-quarter
-                  </span>
-                  . Maintainer responsiveness on security-tagged issues remains
-                  under 24 hours. Discussion threads on RFC-class proposals are
-                  dense and substantive — a signal of a healthy contributor
-                  culture rather than churn.
+                  {ai
+                    ? ai.activityAssessment
+                    : "The AI activity assessment for this repository didn't complete. The GitHub data below is still accurate — regenerate the report to produce the analysis."}
                 </p>
                 <AnalyzedAt generatedAt={generatedAt} />
               </div>
@@ -287,21 +297,27 @@ export function ReportPage({ owner, repo, snapshot, generatedAt }: ReportPagePro
                       Top concerns
                     </h3>
                   </div>
-                  <ul className="mt-4 space-y-4">
-                    {placeholder.concerns.map((c, i) => (
-                      <li key={c.title} className="relative pl-6">
-                        <span className="absolute left-0 top-1.5 font-mono text-[11px] text-amber-300/80">
-                          {String(i + 1).padStart(2, "0")}
-                        </span>
-                        <div className="text-[13.5px] font-medium text-slate-100">
-                          {c.title}
-                        </div>
-                        <div className="mt-1 text-[13px] leading-relaxed text-slate-400">
-                          {c.body}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                  {ai && ai.topConcerns.length > 0 ? (
+                    <ul className="mt-4 space-y-4">
+                      {ai.topConcerns.map((c, i) => (
+                        <li key={c.title} className="relative pl-6">
+                          <span className="absolute left-0 top-1.5 font-mono text-[11px] text-amber-300/80">
+                            {String(i + 1).padStart(2, "0")}
+                          </span>
+                          <div className="text-[13.5px] font-medium text-slate-100">
+                            {c.title}
+                          </div>
+                          <div className="mt-1 text-[13px] leading-relaxed text-slate-400">
+                            {c.body}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-4 text-[13px] leading-relaxed text-slate-500">
+                      Not available — regenerate the report.
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -313,23 +329,29 @@ export function ReportPage({ owner, repo, snapshot, generatedAt }: ReportPagePro
                       Suggested priorities
                     </h3>
                   </div>
-                  <ul className="mt-4 space-y-4">
-                    {placeholder.priorities.map((p) => (
-                      <li key={p.title} className="relative pl-6">
-                        <Check
-                          size={12}
-                          strokeWidth={1.75}
-                          className="absolute left-0 top-1.5 text-emerald-400"
-                        />
-                        <div className="text-[13.5px] font-medium text-slate-100">
-                          {p.title}
-                        </div>
-                        <div className="mt-1 text-[13px] leading-relaxed text-slate-400">
-                          {p.body}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                  {ai && ai.suggestedPriorities.length > 0 ? (
+                    <ul className="mt-4 space-y-4">
+                      {ai.suggestedPriorities.map((p) => (
+                        <li key={p.title} className="relative pl-6">
+                          <Check
+                            size={12}
+                            strokeWidth={1.75}
+                            className="absolute left-0 top-1.5 text-emerald-400"
+                          />
+                          <div className="text-[13.5px] font-medium text-slate-100">
+                            {p.title}
+                          </div>
+                          <div className="mt-1 text-[13px] leading-relaxed text-slate-400">
+                            {p.body}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-4 text-[13px] leading-relaxed text-slate-500">
+                      Not available — regenerate the report.
+                    </p>
+                  )}
                 </div>
               </div>
 

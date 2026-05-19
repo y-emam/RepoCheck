@@ -227,9 +227,9 @@ function parseReport(raw: unknown): AiReport | null {
 export async function generateReport(
   snapshot: RepoSnapshot
 ): Promise<AiReportResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.AI_API_KEY;
   if (!apiKey) {
-    return { ok: false, message: "GEMINI_API_KEY is not set" };
+    return { ok: false, message: "AI_API_KEY is not set" };
   }
 
   const controller = new AbortController();

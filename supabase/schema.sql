@@ -18,6 +18,9 @@ create table if not exists public.reports (
   id                   uuid primary key default gen_random_uuid(),
   repo_id              uuid not null references public.repos (id) on delete cascade,
   health_grade         text,
+  health_score         integer,
+  score_note           text,
+  subscores            jsonb,
   activity_assessment  text,
   top_concerns         jsonb,
   suggested_priorities jsonb,
@@ -25,6 +28,12 @@ create table if not exists public.reports (
   ai_summary           text,
   generated_at         timestamptz not null default now()
 );
+
+-- AI scoring columns, added after the initial Day 2 schema. The if-not-exists
+-- guards let this file double as an idempotent migration for existing tables.
+alter table public.reports add column if not exists health_score integer;
+alter table public.reports add column if not exists score_note  text;
+alter table public.reports add column if not exists subscores   jsonb;
 
 create index if not exists reports_repo_id_generated_at_idx
   on public.reports (repo_id, generated_at desc);

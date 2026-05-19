@@ -1,8 +1,12 @@
 import type { RepoSnapshot } from "@/lib/github";
 
-const GEMINI_MODEL = "gemini-2.0-flash";
-const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 const REQUEST_TIMEOUT_MS = 45_000;
+
+function geminiEndpoint(): string {
+  const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+}
 
 export interface AiSubscore {
   label: string;
@@ -232,7 +236,7 @@ export async function generateReport(
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(GEMINI_ENDPOINT, {
+    const response = await fetch(geminiEndpoint(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

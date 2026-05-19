@@ -414,7 +414,7 @@ function AnalyzedAt({ generatedAt }: { generatedAt: string }) {
       <span className="text-slate-700">·</span>
       <span className="inline-flex items-center gap-1">
         <Sparkles size={11} strokeWidth={1.75} className="text-emerald-400/80" />
-        Powered by Gemini 2.0 Flash
+        Powered by Gemini 2.5 Flash
       </span>
     </div>
   );

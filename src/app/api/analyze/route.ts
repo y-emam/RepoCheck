@@ -21,6 +21,7 @@ interface AnalyzeSuccess {
   cached: boolean;
   generatedAt: string;
   aiGenerated: boolean;
+  aiError?: string;
 }
 
 interface ReportInsertRow {
@@ -81,11 +82,16 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   if (cachedRepo.data) {
+    // Only a report whose AI analysis actually succeeded counts as a cache
+    // hit. A failed run (health_grade IS NULL) must not be served — otherwise
+    // one transient failure poisons the repo for the full 24h TTL and the
+    // "Regenerate" button can never escape it.
     const cachedReport = await supabase
       .from("reports")
       .select("raw_data, generated_at, health_grade")
       .eq("repo_id", cachedRepo.data.id)
       .gte("generated_at", cutoffIso)
+      .not("health_grade", "is", null)
       .order("generated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -102,7 +108,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         data: cachedReport.data.raw_data as RepoSnapshot,
         cached: true,
         generatedAt: cachedReport.data.generated_at,
-        aiGenerated: cachedReport.data.health_grade !== null,
+        aiGenerated: true,
       };
       return NextResponse.json(response);
     }
@@ -197,6 +203,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     cached: false,
     generatedAt: insertReport.data.generated_at,
     aiGenerated: ai.ok,
+    ...(ai.ok ? {} : { aiError: ai.message }),
   };
   return NextResponse.json(response);
 }

@@ -66,6 +66,9 @@ export function Hero() {
         return;
       }
       router.push(`/report/${payload.owner}/${payload.repo}`);
+      // Bust the client Router Cache so the report page reflects the analysis
+      // that just completed, even if that route was visited earlier.
+      router.refresh();
     } catch (err) {
       console.error("Analyze request failed", err);
       setError("Network error — please try again");

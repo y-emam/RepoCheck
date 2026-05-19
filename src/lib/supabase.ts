@@ -57,5 +57,11 @@ export function createServerClient(): ServerSupabaseClient {
   }
   return createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      // Supabase reads are GET requests, which Next.js otherwise stores in its
+      // Data Cache and replays — serving stale rows after a fresh analysis.
+      // Force every request to bypass that cache so reads are always live.
+      fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+    },
   });
 }
